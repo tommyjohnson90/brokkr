@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  app:
+    image: ghcr.io/tommyjohnson90/brokkr/app:production
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+    networks:
+      - brokkr-network
+
+  db-init:
+    image: ghcr.io/tommyjohnson90/brokkr/db-init:production
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-postgres}
+      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    networks:
+      - brokkr-network
+    depends_on:
+      - app
+
+  pydantic-agents:
+    image: ghcr.io/tommyjohnson90/brokkr/pydantic-agents:production
+    restart: always
+    ports:
+      - "8000:8000"
+    networks:
+      - brokkr-network
+    environment:
+      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+
+  monitoring:
+    image: ghcr.io/tommyjohnson90/brokkr/monitoring:production
+    restart: always
+    ports:
+      - "9090:9090"
+      - "3001:3000"
+    volumes:
+      - monitoring-data:/var/lib/prometheus
+      - grafana-data:/var/lib/grafana
+    networks:
+      - brokkr-network
+    depends_on:
+      - app
+
+networks:
+  brokkr-network:
+    driver: bridge
+
+volumes:
+  monitoring-data:
+  grafana-data:

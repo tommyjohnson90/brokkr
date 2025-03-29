@@ -1,0 +1,28 @@
+FROM prom/prometheus:latest as prometheus
+FROM grafana/grafana:latest
+
+# Copy Prometheus binary
+COPY --from=prometheus /bin/prometheus /bin/prometheus
+COPY --from=prometheus /etc/prometheus/prometheus.yml /etc/prometheus/prometheus.yml
+
+# Copy Grafana configuration
+COPY monitoring/grafana/provisioning /etc/grafana/provisioning
+COPY monitoring/grafana/dashboards /var/lib/grafana/dashboards
+
+# Copy Prometheus configuration
+COPY monitoring/prometheus/prometheus.yml /etc/prometheus/prometheus.yml
+
+# Install required packages
+USER root
+RUN apt-get update && apt-get install -y supervisor curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy supervisor configuration
+COPY monitoring/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Expose Prometheus and Grafana ports
+EXPOSE 9090 3000
+
+# Start services using supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

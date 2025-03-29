@@ -1,0 +1,28 @@
+FROM postgres:15-alpine
+
+RUN apk add --no-cache curl
+
+WORKDIR /docker-entrypoint-initdb.d
+
+COPY dashboard-sql/setup-exec-sql.sql /docker-entrypoint-initdb.d/
+COPY dashboard-sql/core-functions-simple.sql /docker-entrypoint-initdb.d/
+COPY dashboard-sql/basic-tables-improved.sql /docker-entrypoint-initdb.d/
+COPY dashboard-sql/missing-tables-simple-improved.sql /docker-entrypoint-initdb.d/
+COPY dashboard-sql/create-units-table-improved.sql /docker-entrypoint-initdb.d/
+COPY dashboard-sql/equipment-subtypes-and-specs-improved.sql /docker-entrypoint-initdb.d/
+COPY dashboard-sql/enhanced-orders-improved.sql /docker-entrypoint-initdb.d/
+COPY dashboard-sql/messaging-system-improved.sql /docker-entrypoint-initdb.d/
+COPY dashboard-sql/contest-system-improved.sql /docker-entrypoint-initdb.d/
+COPY dashboard-sql/ai-integration-improved.sql /docker-entrypoint-initdb.d/
+COPY dashboard-sql/security-compliance-improved.sql /docker-entrypoint-initdb.d/
+COPY dashboard-sql/api-integration-improved.sql /docker-entrypoint-initdb.d/
+COPY dashboard-sql/design-versioning-migration-fixed.sql /docker-entrypoint-initdb.d/
+
+COPY scripts/db-init.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/db-init.sh
+
+ENV POSTGRES_USER=postgres
+ENV POSTGRES_PASSWORD=postgres
+ENV POSTGRES_DB=postgres
+
+CMD ["postgres"]
