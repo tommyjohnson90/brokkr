@@ -23,54 +23,25 @@ jobs:
   build-images:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - component: app
-            docker_file: Dockerfile
+            dockerfile: Dockerfile
             context: .
           - component: db-init
-            docker_file: Dockerfile.db-init
+            dockerfile: Dockerfile.db-init
             context: .
-          - component: pydantic-agents
-            docker_file: pydantic-agents/Dockerfile
-            context: pydantic-agents
-          - component: monitoring
-            docker_file: Dockerfile.monitoring
-            context: .
-            skip_for_dev: true
-            skip_for_staging: true
             
     steps:
-      - name: Skip check
-        id: skip-check
-        run: |
-          if [[ "${{ github.event.inputs.environment }}" == "development" && "${{ matrix.skip_for_dev }}" == "true" ]]; then
-            echo "Skip this component for development environment"
-            echo "skip=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event.inputs.environment }}" == "staging" && "${{ matrix.skip_for_staging }}" == "true" ]]; then
-            echo "Skip this component for staging environment"
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Checkout code
-        if: steps.skip-check.outputs.skip != 'true'
         uses: actions/checkout@v3
 
-      - name: Set up QEMU
-        if: steps.skip-check.outputs.skip != 'true'
-        uses: docker/setup-qemu-action@v2
-      
       - name: Set up Docker Buildx
-        if: steps.skip-check.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v2
 
       - name: Login to GitHub Container Registry
-        if: |
-          steps.skip-check.outputs.skip != 'true' && 
-          (github.event_name == 'workflow_dispatch' && github.event.inputs.push_images == 'true' ||
-           github.event_name == 'push' && github.ref == 'refs/heads/main')
+        if: ${{ github.event.inputs.push_images == 'true' || github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
@@ -78,43 +49,20 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
-        if: steps.skip-check.outputs.skip != 'true'
         id: meta
         uses: docker/metadata-action@v4
         with:
           images: ghcr.io/${{ github.repository }}/${{ matrix.component }}
           tags: |
             type=raw,value=${{ github.event.inputs.environment || 'latest' }}
-            type=sha,prefix=${{ github.event.inputs.environment || 'latest' }}-
 
       - name: Build image
-        if: steps.skip-check.outputs.skip != 'true'
-        id: build
         uses: docker/build-push-action@v4
         with:
           context: ${{ matrix.context }}
-          file: ${{ matrix.docker_file }}
-          push: |
-            ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.push_images == 'true' ||
-               github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          file: ${{ matrix.dockerfile }}
+          push: ${{ github.event.inputs.push_images == 'true' || github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            NODE_ENV=${{ github.event.inputs.environment || 'production' }}
-            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-            SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-            SUPABASE_JWT_SECRET=${{ secrets.SUPABASE_JWT_SECRET }}
-
-      - name: Upload image artifact
-        if: |
-          steps.skip-check.outputs.skip != 'true' && 
-          !(github.event_name == 'workflow_dispatch' && github.event.inputs.push_images == 'true' ||
-            github.event_name == 'push' && github.ref == 'refs/heads/main')
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.component }}-image
-          path: ${{ steps.build.outputs.metadata }}
-          retention-days: 1
